@@ -25,18 +25,49 @@
         .status-success { background-color: #d4edda; color: #155724; }
         .status-error { background-color: #f8d7da; color: #721c24; }
         .status-info { background-color: #cce5ff; color: #004085; }
-        /* Modal de firma a pantalla completa */
-        #signature-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.8); flex-direction: column; justify-content: center; align-items: center; }
-        .modal-content { background-color: white; padding: 20px; border-radius: 10px; text-align: center; max-width: 90%; }
-        #signature-pad { border: 2px dashed #007bff; border-radius: 5px; }
-        .modal-content h3 { margin-top: 0; }
-        .modal-controls button { width: auto; padding: 10px 20px; margin: 10px 5px 0; }
+        
+        /* MODIFICADO: Modal de firma a pantalla completa y responsivo */
+        #signature-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0,0,0,0.9);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            width: 95vw; /* Ocupa el 95% del ancho de la pantalla */
+            max-width: 600px; /* Pero no más de 600px en pantallas grandes */
+            height: 90vh; /* Ocupa el 90% del alto de la pantalla */
+            max-height: 500px;
+        }
+        #signature-pad {
+            border: 2px dashed #007bff;
+            border-radius: 5px;
+            flex-grow: 1; /* El canvas crece para ocupar el espacio disponible */
+            width: 100%;
+            height: 100%;
+        }
+        .modal-content h3 { margin-top: 0; margin-bottom: 10px; }
+        .modal-controls { margin-top: 10px; }
+        .modal-controls button { width: auto; padding: 10px 20px; margin: 0 5px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Firma Inteligente de Registro de Formación</h1>
-        <p style="text-align:center;">Esta herramienta encontrará tu cédula en el PDF y colocará tu firma en el lugar correcto automáticamente.</p>
+        <p style="text-align:center;">Esta herramienta encontrará tu cédula en el PDF y colocará tu firma en el lugar correcto automáticamente, incluso si aparece varias veces.</p>
 
         <div class="step">
             <h2>Paso 1: Cargar el Documento PDF</h2>
@@ -60,11 +91,11 @@
         <div id="pdf-viewer"></div>
     </div>
 
-    <!-- Modal para el panel de firma -->
+    <!-- MODIFICADO: Contenido del modal reestructurado para mejor responsividad -->
     <div id="signature-modal">
         <div class="modal-content">
             <h3 id="signature-user-name">Dibuja tu firma en el recuadro</h3>
-            <canvas id="signature-pad" width="500" height="250"></canvas>
+            <canvas id="signature-pad"></canvas> <!-- Se quitan width y height fijos -->
             <div class="modal-controls">
                 <button id="clear-signature">Limpiar</button>
                 <button id="save-signature">Aceptar y Guardar Firma</button>
@@ -102,8 +133,9 @@
     // Variables de estado
     let pdfDoc = null;
     let pdfBytes = null;
-    let pdfTextContent = []; // Almacenará el texto y coordenadas de cada línea del PDF
-    let currentUser = null; // Almacenará la info del firmante actual
+    let pdfTextContent = [];
+    // MODIFICADO: Almacena una lista de lugares donde firmar, no solo uno.
+    let signatureTargets = []; 
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
     // --- LÓGICA PRINCIPAL ---
@@ -123,10 +155,7 @@
             pdfBytes = new Uint8Array(arrayBuffer);
             pdfDoc = await PDFDocument.load(pdfBytes);
             
-            // Renderiza el PDF para el usuario
             await renderPdf();
-            
-            // Extrae el texto para la búsqueda inteligente
             await extractTextFromPdf();
 
             cedulaInput.disabled = false;
@@ -139,33 +168,33 @@
     });
 
     signBtn.addEventListener('click', () => {
-        const cedula = cedulaInput.value.trim().replace(/\.|,/g, ''); // Limpia puntos o comas
+        const cedula = cedulaInput.value.trim().replace(/\.|,/g, '');
         if (!cedula) {
             alert('Por favor, ingrese su número de cédula.');
             return;
         }
 
-        // Busca la línea en el contenido extraído del PDF
-        const foundLine = pdfTextContent.find(line => line.fullText.replace(/\s/g, '').includes(cedula));
+        // MODIFICADO: Usamos .filter() para encontrar TODAS las apariciones, no solo la primera.
+        const foundLines = pdfTextContent.filter(line => line.fullText.replace(/\s/g, '').includes(cedula));
         
-        if (foundLine) {
-            // Guardamos la información del usuario encontrado
-            currentUser = {
+        if (foundLines.length > 0) {
+            // MODIFICADO: Guardamos todas las ubicaciones encontradas.
+            signatureTargets = foundLines.map(line => ({
                 cedula: cedula,
-                nombre: foundLine.fullText, // Guardamos la línea entera como referencia
+                nombre: line.fullText,
                 x: SIGNATURE_COLUMN_X,
-                y: foundLine.y + SIGNATURE_Y_OFFSET
-            };
+                y: line.y + SIGNATURE_Y_OFFSET,
+                pageIndex: line.pageIndex // Guardamos la página correcta
+            }));
+
+            // MODIFICADO: Mensaje de estado más informativo
+            const S = signatureTargets.length > 1 ? 's' : '';
+            updateStatus(`Se encontró la cédula en ${signatureTargets.length} ubicación${S}. La firma se aplicará en todos los lugares.`, 'info');
 
             signatureUserName.textContent = `Confirma tu firma`;
             signatureModal.style.display = 'flex';
-            // Ajustar tamaño del canvas al mostrarse
-            setTimeout(() => {
-                const rect = signaturePadCanvas.getBoundingClientRect();
-                signaturePad.canvas.width = rect.width;
-                signaturePad.canvas.height = rect.height;
-                signaturePad.clear();
-            }, 10);
+            // NUEVO: Ajusta el tamaño del canvas al mostrarse para que sea responsivo.
+            resizeCanvas();
             
         } else {
             updateStatus(`Cédula "${cedula}" no encontrada en el documento. Por favor, verifique.`, 'error');
@@ -181,27 +210,29 @@
         }
         const signatureImage = signaturePad.toDataURL('image/png');
         signatureModal.style.display = 'none';
-        updateStatus('Incrustando firma en el documento...', 'info');
-        await embedSignature(signatureImage, currentUser);
+        updateStatus('Incrustando firma(s) en el documento...', 'info');
+        // MODIFICADO: Se pasa la lista de objetivos a la función de incrustar.
+        await embedSignatures(signatureImage, signatureTargets);
     });
 
-    async function embedSignature(signatureImage, user) {
+    // MODIFICADO: La función ahora maneja un array de firmas.
+    async function embedSignatures(signatureImage, targets) {
         try {
-            // Recargamos el documento para no acumular cambios no guardados
             pdfDoc = await PDFDocument.load(pdfBytes); 
             
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
             const pngImage = await pdfDoc.embedPng(pngImageBytes);
             
-            // La extracción de texto nos da la página, pero por si acaso, asumimos la primera.
-            // Una mejora sería guardar el `pageIndex` en `foundLine`.
-            const page = pdfDoc.getPage(user.pageIndex || 0); 
+            // MODIFICADO: Itera sobre cada objetivo de firma.
+            targets.forEach(target => {
+                const page = pdfDoc.getPage(target.pageIndex); 
 
-            page.drawImage(pngImage, {
-                x: user.x,
-                y: user.y,
-                width: SIGNATURE_WIDTH,
-                height: SIGNATURE_HEIGHT,
+                page.drawImage(pngImage, {
+                    x: target.x,
+                    y: target.y,
+                    width: SIGNATURE_WIDTH,
+                    height: SIGNATURE_HEIGHT,
+                });
             });
 
             pdfBytes = await pdfDoc.save();
@@ -210,10 +241,11 @@
             downloadBtn.disabled = false;
             whatsappBtn.disabled = false;
             cedulaInput.value = '';
-            updateStatus(`¡Firma para cédula ${user.cedula} añadida con éxito! Ya puede descargar o firmar otro documento.`, 'success');
+            // MODIFICADO: Mensaje de éxito actualizado.
+            updateStatus(`¡Firma para cédula ${targets[0].cedula} añadida con éxito en ${targets.length} lugar(es)! Ya puede descargar o firmar con otra cédula.`, 'success');
 
         } catch (err) {
-            updateStatus(`Error al incrustar la firma: ${err.message}`, 'error');
+            updateStatus(`Error al incrustar la(s) firma(s): ${err.message}`, 'error');
             console.error(err);
         }
     }
@@ -236,6 +268,21 @@
 
     // --- FUNCIONES AUXILIARES ---
 
+    // NUEVO: Función para hacer el canvas de la firma responsivo.
+    function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const canvas = signaturePadCanvas;
+        // Se ajusta el tamaño del buffer del canvas a su tamaño en pantalla.
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext("2d").scale(ratio, ratio);
+        // Limpiamos el contenido anterior después de redimensionar.
+        signaturePad.clear(); 
+    }
+    // NUEVO: Escuchador de eventos para redimensionar el canvas si el usuario gira el teléfono.
+    window.addEventListener("resize", resizeCanvas);
+
+
     async function renderPdf() {
         pdfViewer.innerHTML = '';
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
@@ -254,21 +301,18 @@
     }
 
     async function extractTextFromPdf() {
-        pdfTextContent = []; // Limpiar contenido anterior
+        pdfTextContent = [];
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
 
         for (let i = 0; i < pdfJsDoc.numPages; i++) {
             const page = await pdfJsDoc.getPage(i + 1);
-            const pageHeight = page.getViewport({ scale: 1.0 }).height;
             const textContent = await page.getTextContent();
             
-            const lines = {}; // Objeto para agrupar textos por su coordenada Y
+            const lines = {};
 
             textContent.items.forEach(item => {
-                // La coordenada Y en pdf.js se mide desde la esquina inferior izquierda.
                 const y = item.transform[5];
                 const x = item.transform[4];
-                // Agrupamos por líneas redondeando la coordenada Y
                 const yKey = Math.round(y); 
                 
                 if (!lines[yKey]) {
@@ -277,17 +321,14 @@
                 lines[yKey].push({ text: item.str, x: x });
             });
             
-            // Procesamos las líneas agrupadas
             for (const yKey in lines) {
-                // Ordenamos los fragmentos de texto por su coordenada X (de izquierda a derecha)
                 const sortedItems = lines[yKey].sort((a, b) => a.x - b.x);
                 const fullText = sortedItems.map(item => item.text).join(' ');
                 
-                // Convertimos la coordenada Y de pdf.js a la de pdf-lib (que es la misma, origen abajo-izquierda)
-                // y la guardamos en nuestro array de contenido
+                // MODIFICADO: Se guarda el índice de la página (i) para saber dónde firmar.
                 pdfTextContent.push({
                     fullText: fullText,
-                    y: parseFloat(yKey), // Usamos la Y de la línea
+                    y: parseFloat(yKey),
                     pageIndex: i
                 });
             }
@@ -309,6 +350,7 @@
         pdfViewer.innerHTML = '';
         statusDiv.innerHTML = '';
         statusDiv.className = '';
+        signatureTargets = []; // Limpia la lista de objetivos
     }
 
 </script>
