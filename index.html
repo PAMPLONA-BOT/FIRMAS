@@ -25,12 +25,90 @@
         .status-success { background-color: #d4edda; color: #155724; }
         .status-error { background-color: #f8d7da; color: #721c24; }
         .status-info { background-color: #cce5ff; color: #004085; }
-        /* Modal de firma a pantalla completa */
-        #signature-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.8); flex-direction: column; justify-content: center; align-items: center; }
-        .modal-content { background-color: white; padding: 20px; border-radius: 10px; text-align: center; max-width: 90%; }
-        #signature-pad { border: 2px dashed #007bff; border-radius: 5px; }
-        .modal-content h3 { margin-top: 0; }
-        .modal-controls button { width: auto; padding: 10px 20px; margin: 10px 5px 0; }
+
+        /* --- ESTILOS MEJORADOS PARA EL MODAL DE FIRMA --- */
+        #signature-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0,0,0,0.8);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            max-width: 95vw;
+            max-height: 95vh;
+        }
+        #signature-canvas-container {
+            flex-grow: 1; /* Ocupa el espacio disponible */
+            position: relative;
+            border: 2px dashed #007bff;
+            border-radius: 5px;
+            touch-action: none; /* Evita scroll en móvil al firmar */
+        }
+        #signature-pad {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            flex-shrink: 0; /* Evita que el título se encoja */
+        }
+        .modal-controls {
+            margin-top: 15px;
+            flex-shrink: 0; /* Evita que los controles se encojan */
+        }
+        .modal-controls button {
+            width: auto;
+            padding: 10px 20px;
+            margin: 0 10px;
+        }
+
+        /* VISTA HORIZONTAL PARA MÓVILES (PANTALLA COMPLETA) */
+        @media (max-width: 768px) and (orientation: landscape) {
+             #signature-modal {
+                padding: 0;
+             }
+            .modal-content {
+                flex-direction: row; /* Canvas a la izquierda, botones a la derecha */
+                max-width: 100vw;
+                max-height: 100vh;
+                border-radius: 0;
+                padding: 15px;
+                gap: 15px;
+            }
+             .modal-content h3 {
+                display: none; /* Ocultamos el título para dar más espacio */
+            }
+            .modal-controls {
+                flex-direction: column; /* Botones en columna */
+                justify-content: center;
+                margin-top: 0;
+                width: 120px; /* Ancho fijo para la columna de botones */
+                flex-shrink: 0;
+            }
+            .modal-controls button {
+                width: 100%;
+                margin: 10px 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -64,21 +142,22 @@
     <div id="signature-modal">
         <div class="modal-content">
             <h3 id="signature-user-name">Dibuja tu firma en el recuadro</h3>
-            <canvas id="signature-pad" width="500" height="250"></canvas>
+            <div id="signature-canvas-container">
+                 <canvas id="signature-pad"></canvas>
+            </div>
             <div class="modal-controls">
                 <button id="clear-signature">Limpiar</button>
-                <button id="save-signature">Aceptar y Guardar Firma</button>
+                <button id="save-signature">Aceptar y Guardar</button>
             </div>
         </div>
     </div>
 
 <script>
     // --- ¡IMPORTANTE! CONFIGURACIÓN DE LA FIRMA ---
-    // Ajusta estos valores según tu formato PDF.
-    const SIGNATURE_COLUMN_X = 420; // Posición HORIZONTAL (eje X) donde comenzarán TODAS las firmas.
-    const SIGNATURE_Y_OFFSET = -4; // Ajuste VERTICAL fino. Un valor negativo baja la firma, positivo la sube.
-    const SIGNATURE_WIDTH = 97;    // Ancho de la imagen de la firma en el PDF.
-    const SIGNATURE_HEIGHT = 20;    // Alto de la imagen de la firma en el PDF.
+    const SIGNATURE_COLUMN_X = 420;
+    const SIGNATURE_Y_OFFSET = -4;
+    const SIGNATURE_WIDTH = 97;
+    const SIGNATURE_HEIGHT = 20;
     // ------------------------------------------------
 
     // Referencias a librerías
@@ -98,12 +177,13 @@
     const signatureUserName = document.getElementById('signature-user-name');
     const saveSignatureBtn = document.getElementById('save-signature');
     const clearSignatureBtn = document.getElementById('clear-signature');
+    const signatureCanvasContainer = document.getElementById('signature-canvas-container');
 
     // Variables de estado
     let pdfDoc = null;
     let pdfBytes = null;
-    let pdfTextContent = []; // Almacenará el texto y coordenadas de cada línea del PDF
-    let currentUser = null; // Almacenará la info del firmante actual
+    let pdfTextContent = [];
+    let currentUser = null;
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
     // --- LÓGICA PRINCIPAL ---
@@ -114,21 +194,14 @@
             updateStatus('Por favor, selecciona un archivo PDF válido.', 'error');
             return;
         }
-        
         resetUI();
         updateStatus('Cargando y analizando el PDF...', 'info');
-
         try {
             const arrayBuffer = await file.arrayBuffer();
             pdfBytes = new Uint8Array(arrayBuffer);
             pdfDoc = await PDFDocument.load(pdfBytes);
-            
-            // Renderiza el PDF para el usuario
             await renderPdf();
-            
-            // Extrae el texto para la búsqueda inteligente
             await extractTextFromPdf();
-
             cedulaInput.disabled = false;
             signBtn.disabled = false;
             updateStatus('PDF cargado y analizado. Ingrese su cédula para firmar.', 'success');
@@ -139,40 +212,35 @@
     });
 
     signBtn.addEventListener('click', () => {
-        const cedula = cedulaInput.value.trim().replace(/\.|,/g, ''); // Limpia puntos o comas
+        const cedula = cedulaInput.value.trim().replace(/\.|,/g, '');
         if (!cedula) {
             alert('Por favor, ingrese su número de cédula.');
             return;
         }
 
-        // Busca la línea en el contenido extraído del PDF
         const foundLine = pdfTextContent.find(line => line.fullText.replace(/\s/g, '').includes(cedula));
         
         if (foundLine) {
-            // Guardamos la información del usuario encontrado
             currentUser = {
                 cedula: cedula,
-                nombre: foundLine.fullText, // Guardamos la línea entera como referencia
+                nombre: foundLine.fullText,
                 x: SIGNATURE_COLUMN_X,
-                y: foundLine.y + SIGNATURE_Y_OFFSET
+                y: foundLine.y + SIGNATURE_Y_OFFSET,
+                pageIndex: foundLine.pageIndex
             };
-
             signatureUserName.textContent = `Confirma tu firma`;
             signatureModal.style.display = 'flex';
-            // Ajustar tamaño del canvas al mostrarse
-            setTimeout(() => {
-                const rect = signaturePadCanvas.getBoundingClientRect();
-                signaturePad.canvas.width = rect.width;
-                signaturePad.canvas.height = rect.height;
-                signaturePad.clear();
-            }, 10);
-            
+            setTimeout(setupSignatureCanvas, 50); // Pequeño delay para asegurar que el modal es visible
         } else {
             updateStatus(`Cédula "${cedula}" no encontrada en el documento. Por favor, verifique.`, 'error');
         }
     });
 
-    clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
+    clearSignatureBtn.addEventListener('click', () => {
+        // Limpiamos y redibujamos la línea guía
+        signaturePad.clear();
+        drawGuideline();
+    });
 
     saveSignatureBtn.addEventListener('click', async () => {
         if (signaturePad.isEmpty()) {
@@ -187,31 +255,22 @@
 
     async function embedSignature(signatureImage, user) {
         try {
-            // Recargamos el documento para no acumular cambios no guardados
-            pdfDoc = await PDFDocument.load(pdfBytes); 
-            
+            pdfDoc = await PDFDocument.load(pdfBytes);
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
             const pngImage = await pdfDoc.embedPng(pngImageBytes);
-            
-            // La extracción de texto nos da la página, pero por si acaso, asumimos la primera.
-            // Una mejora sería guardar el `pageIndex` en `foundLine`.
-            const page = pdfDoc.getPage(user.pageIndex || 0); 
-
+            const page = pdfDoc.getPage(user.pageIndex || 0);
             page.drawImage(pngImage, {
                 x: user.x,
                 y: user.y,
                 width: SIGNATURE_WIDTH,
                 height: SIGNATURE_HEIGHT,
             });
-
             pdfBytes = await pdfDoc.save();
-            
             await renderPdf();
             downloadBtn.disabled = false;
             whatsappBtn.disabled = false;
             cedulaInput.value = '';
-            updateStatus(`¡Firma para cédula ${user.cedula} añadida con éxito! Ya puede descargar o firmar otro documento.`, 'success');
-
+            updateStatus(`¡Firma para cédula ${user.cedula} añadida con éxito! Ya puede firmar otro o descargar.`, 'success');
         } catch (err) {
             updateStatus(`Error al incrustar la firma: ${err.message}`, 'error');
             console.error(err);
@@ -233,13 +292,56 @@
         alert("Para compartir en WhatsApp:\n\n1. Primero, descargue el PDF firmado con el botón de al lado.\n2. Luego, abra WhatsApp y adjunte el archivo descargado.");
     });
 
+    // --- FUNCIONES AUXILIARES Y DE FIRMA MEJORADAS ---
 
-    // --- FUNCIONES AUXILIARES ---
+    function setupSignatureCanvas() {
+        // Redimensionar el canvas
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const rect = signatureCanvasContainer.getBoundingClientRect();
+        signaturePadCanvas.width = rect.width * ratio;
+        signaturePadCanvas.height = rect.height * ratio;
+        signaturePadCanvas.getContext("2d").scale(ratio, ratio);
+        
+        // Limpiar cualquier firma anterior y dibujar la guía
+        signaturePad.clear();
+        drawGuideline();
+    }
+
+    function drawGuideline() {
+        const ctx = signaturePadCanvas.getContext('2d');
+        const width = signaturePadCanvas.clientWidth;
+        const height = signaturePadCanvas.clientHeight;
+        
+        // Estilo de la línea guía
+        ctx.strokeStyle = '#c0c0c0';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 10]); // Línea punteada
+        
+        // Dibujar la línea en el centro vertical
+        const y_center = height / 2;
+        ctx.beginPath();
+        ctx.moveTo(10, y_center);
+        ctx.lineTo(width - 10, y_center);
+        ctx.stroke();
+
+        // Añadir texto de ayuda
+        ctx.setLineDash([]); // Reset a línea sólida
+        ctx.font = "14px Arial";
+        ctx.fillStyle = "#c0c0c0";
+        ctx.textAlign = "center";
+        ctx.fillText("Firme sobre la línea", width / 2, y_center - 10);
+    }
+
+    // Escuchar cambios de tamaño/orientación para redibujar el canvas si está abierto
+    window.addEventListener('resize', () => {
+        if (signatureModal.style.display === 'flex') {
+            setupSignatureCanvas();
+        }
+    });
 
     async function renderPdf() {
         pdfViewer.innerHTML = '';
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-        
         for (let i = 0; i < pdfJsDoc.numPages; i++) {
             const page = await pdfJsDoc.getPage(i + 1);
             const viewport = page.getViewport({ scale: 1.5 });
@@ -247,47 +349,31 @@
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            
             await page.render({ canvasContext: context, viewport: viewport }).promise;
             pdfViewer.appendChild(canvas);
         }
     }
 
     async function extractTextFromPdf() {
-        pdfTextContent = []; // Limpiar contenido anterior
+        pdfTextContent = [];
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-
         for (let i = 0; i < pdfJsDoc.numPages; i++) {
             const page = await pdfJsDoc.getPage(i + 1);
-            const pageHeight = page.getViewport({ scale: 1.0 }).height;
             const textContent = await page.getTextContent();
-            
-            const lines = {}; // Objeto para agrupar textos por su coordenada Y
-
+            const lines = {};
             textContent.items.forEach(item => {
-                // La coordenada Y en pdf.js se mide desde la esquina inferior izquierda.
                 const y = item.transform[5];
                 const x = item.transform[4];
-                // Agrupamos por líneas redondeando la coordenada Y
-                const yKey = Math.round(y); 
-                
-                if (!lines[yKey]) {
-                    lines[yKey] = [];
-                }
+                const yKey = Math.round(y);
+                if (!lines[yKey]) lines[yKey] = [];
                 lines[yKey].push({ text: item.str, x: x });
             });
-            
-            // Procesamos las líneas agrupadas
             for (const yKey in lines) {
-                // Ordenamos los fragmentos de texto por su coordenada X (de izquierda a derecha)
                 const sortedItems = lines[yKey].sort((a, b) => a.x - b.x);
                 const fullText = sortedItems.map(item => item.text).join(' ');
-                
-                // Convertimos la coordenada Y de pdf.js a la de pdf-lib (que es la misma, origen abajo-izquierda)
-                // y la guardamos en nuestro array de contenido
                 pdfTextContent.push({
                     fullText: fullText,
-                    y: parseFloat(yKey), // Usamos la Y de la línea
+                    y: parseFloat(yKey),
                     pageIndex: i
                 });
             }
@@ -297,7 +383,7 @@
     
     function updateStatus(message, type) {
         statusDiv.textContent = message;
-        statusDiv.className = `status-${type}`;
+        statusDiv.className = `status status-${type}`;
     }
 
     function resetUI() {
