@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firma Inteligente de Registro de Formación</title>
+    <title>Firma Masiva de Registros de Formación</title>
     <!-- Librerías de PDF y Firma -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
@@ -19,52 +19,58 @@
         button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; transition: background-color 0.3s; }
         button:hover:not(:disabled) { background-color: #0056b3; }
         button:disabled { background-color: #c0c0c0; cursor: not-allowed; }
-        #pdf-viewer { border: 1px solid #ccc; margin-top: 20px; max-height: 80vh; overflow-y: auto; }
+        #pdf-viewer { border: 1px solid #ccc; margin-top: 20px; max-height: 80vh; overflow-y: auto; padding: 10px; }
+        #pdf-viewer h3 { background-color: #f1f1f1; padding: 8px; border-radius: 5px; margin-top: 20px; margin-bottom: 10px; text-align: center; }
         #pdf-viewer canvas { display: block; margin: 10px auto; box-shadow: 0 0 8px rgba(0,0,0,0.2); width: 100%; height: auto; }
-        #status { text-align: center; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 5px; }
+        #status, #download-area { text-align: center; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 5px; }
+        #download-area a { display: block; background-color: #28a745; color: white; padding: 12px; text-decoration: none; border-radius: 5px; margin-top: 10px; transition: background-color 0.3s; }
+        #download-area a:hover { background-color: #218838; }
         .status-success { background-color: #d4edda; color: #155724; }
         .status-error { background-color: #f8d7da; color: #721c24; }
         .status-info { background-color: #cce5ff; color: #004085; }
-        
-        #signature-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.9); flex-direction: column; justify-content: center; align-items: center; }
-        .modal-content { display: flex; flex-direction: column; background-color: white; padding: 15px; border-radius: 10px; text-align: center; width: 95vw; max-width: 600px; height: 90vh; max-height: 500px; }
-        #signature-pad { border: 2px dashed #007bff; border-radius: 5px; flex-grow: 1; width: 100%; height: 100%; }
-        .modal-content h3 { margin-top: 0; margin-bottom: 10px; }
-        .modal-controls { margin-top: 10px; }
-        .modal-controls button { width: auto; padding: 10px 20px; margin: 0 5px; }
+        /* Modal de firma a pantalla completa */
+        #signature-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.8); flex-direction: column; justify-content: center; align-items: center; }
+        .modal-content { background-color: white; padding: 20px; border-radius: 10px; text-align: center; max-width: 90%; }
+        #signature-pad { border: 2px dashed #007bff; border-radius: 5px; }
+        .modal-content h3 { margin-top: 0; }
+        .modal-controls button { width: auto; padding: 10px 20px; margin: 10px 5px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Firma Inteligente de Registro de Formación</h1>
-        <p style="text-align:center;">Esta herramienta encontrará tu cédula en el PDF y colocará tu firma en el lugar correcto automáticamente, incluso si aparece varias veces.</p>
+        <h1>Firma Masiva de Registros de Formación</h1>
+        <p style="text-align:center;">Esta herramienta encontrará tu cédula en <b>todos los PDFs cargados y en todas sus páginas</b>, y colocará tu firma en los lugares correctos automáticamente.</p>
 
         <div class="step">
-            <h2>Paso 1: Cargar el Documento PDF</h2>
-            <input type="file" id="file-input" accept=".pdf">
+            <h2>Paso 1: Cargar Documento(s) PDF</h2>
+            <p>Puedes seleccionar uno o varios archivos a la vez.</p>
+            <input type="file" id="file-input" accept=".pdf" multiple>
         </div>
 
         <div class="step">
             <h2>Paso 2: Identifíquese para Firmar</h2>
-            <p>Ingrese su número de cédula y presione "Buscar y Abrir Panel de Firma".</p>
+            <p>Ingrese su número de cédula y presione "Buscar y Abrir Panel de Firma". La firma se aplicará en todas las coincidencias encontradas en los documentos cargados.</p>
             <input type="text" id="cedula-input" placeholder="Escriba su cédula sin puntos" disabled>
             <button id="sign-btn" disabled>Buscar y Abrir Panel de Firma</button>
         </div>
 
         <div class="step">
-            <h2>Paso 3: Descargar y Compartir</h2>
-            <button id="download-btn" disabled>Descargar PDF Firmado</button>
-            <button id="whatsapp-btn" disabled>Compartir en WhatsApp</button>
+            <h2>Paso 3: Descargar Documentos Firmados</h2>
+            <div id="download-area">
+                <p>Aquí aparecerán los enlaces para descargar sus archivos firmados.</p>
+            </div>
+            <button id="whatsapp-btn" style="margin-top: 15px; background-color: #6c757d;">Información para Compartir</button>
         </div>
 
         <div id="status"></div>
         <div id="pdf-viewer"></div>
     </div>
 
+    <!-- Modal para el panel de firma -->
     <div id="signature-modal">
         <div class="modal-content">
             <h3 id="signature-user-name">Dibuja tu firma en el recuadro</h3>
-            <canvas id="signature-pad"></canvas>
+            <canvas id="signature-pad" width="500" height="250"></canvas>
             <div class="modal-controls">
                 <button id="clear-signature">Limpiar</button>
                 <button id="save-signature">Aceptar y Guardar Firma</button>
@@ -74,12 +80,10 @@
 
 <script>
     // --- ¡IMPORTANTE! CONFIGURACIÓN DE LA FIRMA ---
-    // Ahora el script detecta la posición X automáticamente.
-    // Estos valores son para ajustar el tamaño y la posición final.
-    const SIGNATURE_X_OFFSET = 15; // Espacio HORIZONTAL entre el final del texto y el inicio de la firma. Ajusta este valor si es necesario.
-    const SIGNATURE_Y_OFFSET = -4; // Ajuste VERTICAL fino. Un valor negativo baja la firma, positivo la sube.
-    const SIGNATURE_WIDTH = 97;    // Ancho de la imagen de la firma en el PDF.
-    const SIGNATURE_HEIGHT = 20;   // Alto de la imagen de la firma en el PDF.
+    const SIGNATURE_COLUMN_X = 420; // Posición HORIZONTAL (eje X) donde comenzarán TODAS las firmas.
+    const SIGNATURE_Y_OFFSET = -4;  // Ajuste VERTICAL fino. Un valor negativo baja la firma, positivo la sube.
+    const SIGNATURE_WIDTH = 97;     // Ancho de la imagen de la firma en el PDF.
+    const SIGNATURE_HEIGHT = 20;    // Alto de la imagen de la firma en el PDF.
     // ------------------------------------------------
 
     // Referencias a librerías
@@ -90,7 +94,7 @@
     const fileInput = document.getElementById('file-input');
     const cedulaInput = document.getElementById('cedula-input');
     const signBtn = document.getElementById('sign-btn');
-    const downloadBtn = document.getElementById('download-btn');
+    const downloadArea = document.getElementById('download-area');
     const whatsappBtn = document.getElementById('whatsapp-btn');
     const pdfViewer = document.getElementById('pdf-viewer');
     const statusDiv = document.getElementById('status');
@@ -101,31 +105,47 @@
     const clearSignatureBtn = document.getElementById('clear-signature');
 
     // Variables de estado
-    let pdfBytes = null;
-    let pdfTextContent = [];
-    let signatureTargets = []; 
+    let loadedPdfs = []; // Array para almacenar los datos de cada PDF cargado
+    let locationsToSign = []; // Array para almacenar todas las ubicaciones donde se debe firmar
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
     // --- LÓGICA PRINCIPAL ---
 
     fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file || file.type !== 'application/pdf') {
-            updateStatus('Por favor, selecciona un archivo PDF válido.', 'error');
-            return;
-        }
+        const files = e.target.files;
+        if (files.length === 0) return;
+
         resetUI();
-        updateStatus('Cargando y analizando el PDF...', 'info');
+        updateStatus(`Cargando y analizando ${files.length} archivo(s)...`, 'info');
+
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            pdfBytes = new Uint8Array(arrayBuffer);
-            await renderPdf();
-            await extractTextFromPdf();
+            // Procesamos todos los archivos seleccionados en paralelo
+            const processingPromises = Array.from(files).map(async (file) => {
+                if (file.type !== 'application/pdf') {
+                    console.warn(`Omitiendo archivo no PDF: ${file.name}`);
+                    return null;
+                }
+                const originalBytes = new Uint8Array(await file.arrayBuffer());
+                const textContent = await extractTextFromPdf(originalBytes);
+                return { file, originalBytes, textContent, signedBytes: null };
+            });
+
+            // Esperamos a que todos los archivos se procesen
+            const results = await Promise.all(processingPromises);
+            loadedPdfs = results.filter(p => p !== null); // Filtramos los nulos (archivos no PDF)
+
+            if (loadedPdfs.length === 0) {
+                 throw new Error("No se seleccionaron archivos PDF válidos.");
+            }
+
+            await renderAllPdfs();
+
             cedulaInput.disabled = false;
             signBtn.disabled = false;
-            updateStatus('PDF cargado y analizado. Ingrese su cédula para firmar.', 'success');
+            updateStatus(`${loadedPdfs.length} PDF(s) cargado(s) y analizado(s). Ingrese su cédula para firmar.`, 'success');
+
         } catch (err) {
-            updateStatus(`Error al cargar el PDF: ${err.message}`, 'error');
+            updateStatus(`Error al cargar los PDFs: ${err.message}`, 'error');
             console.error(err);
         }
     });
@@ -137,24 +157,35 @@
             return;
         }
 
-        const foundLines = pdfTextContent.filter(line => line.fullText.replace(/\s/g, '').includes(cedula));
+        locationsToSign = []; // Limpiamos ubicaciones anteriores
         
-        if (foundLines.length > 0) {
-            signatureTargets = foundLines.map(line => ({
-                cedula: cedula,
-                // CORREGIDO: La posición X ya no es fija. Se calcula a partir del final del texto en la línea.
-                x: line.endOfTextX + SIGNATURE_X_OFFSET,
-                y: line.y + SIGNATURE_Y_OFFSET,
-                pageIndex: line.pageIndex
-            }));
+        // Buscamos la cédula en TODOS los documentos cargados
+        loadedPdfs.forEach((pdfData, fileIndex) => {
+            const foundLines = pdfData.textContent.filter(line => 
+                line.fullText.replace(/\s/g, '').includes(cedula)
+            );
+            
+            foundLines.forEach(line => {
+                locationsToSign.push({
+                    fileIndex: fileIndex, // Guardamos el índice del archivo
+                    pageIndex: line.pageIndex, // Guardamos el índice de la página
+                    y: line.y + SIGNATURE_Y_OFFSET,
+                    x: SIGNATURE_COLUMN_X
+                });
+            });
+        });
 
-            const s = signatureTargets.length > 1 ? 's' : '';
-            updateStatus(`Se encontró la cédula en ${signatureTargets.length} ubicación${s}. La firma se aplicará en todo${s} lo${s} lugar${s}.`, 'info');
-            signatureUserName.textContent = `Confirma tu firma`;
+        if (locationsToSign.length > 0) {
+            signatureUserName.textContent = `Se encontraron ${locationsToSign.length} coincidencia(s). Dibuja tu firma para aplicarla en todas.`;
             signatureModal.style.display = 'flex';
-            resizeCanvas();
+            setTimeout(() => {
+                const rect = signaturePadCanvas.getBoundingClientRect();
+                signaturePad.canvas.width = rect.width;
+                signaturePad.canvas.height = rect.height;
+                signaturePad.clear();
+            }, 10);
         } else {
-            updateStatus(`Cédula "${cedula}" no encontrada en el documento. Por favor, verifique.`, 'error');
+            updateStatus(`Cédula "${cedula}" no encontrada en ninguno de los documentos. Por favor, verifique.`, 'error');
         }
     });
 
@@ -167,121 +198,139 @@
         }
         const signatureImage = signaturePad.toDataURL('image/png');
         signatureModal.style.display = 'none';
-        updateStatus('Incrustando firma(s) en el documento...', 'info');
-        await embedSignatures(signatureImage, signatureTargets);
+        updateStatus('Incrustando firmas en los documentos... Esto puede tardar un momento.', 'info');
+        await embedSignatures(signatureImage);
     });
 
-    async function embedSignatures(signatureImage, targets) {
+    async function embedSignatures(signatureImage) {
         try {
-            const pdfDoc = await PDFDocument.load(pdfBytes); 
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
-            const pngImage = await pdfDoc.embedPng(pngImageBytes);
             
-            targets.forEach(target => {
-                const page = pdfDoc.getPage(target.pageIndex); 
-                page.drawImage(pngImage, {
-                    x: target.x,
-                    y: target.y,
-                    width: SIGNATURE_WIDTH,
-                    height: SIGNATURE_HEIGHT,
-                });
-            });
+            // Agrupamos las firmas por archivo para procesar cada PDF una sola vez
+            const locationsByFile = locationsToSign.reduce((acc, loc) => {
+                if (!acc[loc.fileIndex]) {
+                    acc[loc.fileIndex] = [];
+                }
+                acc[loc.fileIndex].push(loc);
+                return acc;
+            }, {});
 
-            pdfBytes = await pdfDoc.save();
-            await renderPdf();
-            downloadBtn.disabled = false;
-            whatsappBtn.disabled = false;
+            // Procesamos cada archivo que necesita ser firmado
+            for (const fileIndexStr in locationsByFile) {
+                const fileIndex = parseInt(fileIndexStr, 10);
+                const pdfData = loadedPdfs[fileIndex];
+                const locations = locationsByFile[fileIndex];
+
+                const pdfDoc = await PDFDocument.load(pdfData.originalBytes);
+                const pngImage = await pdfDoc.embedPng(pngImageBytes);
+                
+                locations.forEach(loc => {
+                    const page = pdfDoc.getPage(loc.pageIndex);
+                    page.drawImage(pngImage, {
+                        x: loc.x,
+                        y: loc.y,
+                        width: SIGNATURE_WIDTH,
+                        height: SIGNATURE_HEIGHT,
+                    });
+                });
+
+                // Guardamos los bytes firmados en nuestro objeto de estado
+                pdfData.signedBytes = await pdfDoc.save();
+            }
+
+            await renderAllPdfs(true); // Re-renderiza para mostrar los cambios
+            displayDownloadLinks();
             cedulaInput.value = '';
-            const s = targets.length > 1 ? 's' : '';
-            updateStatus(`¡Firma para cédula ${targets[0].cedula} añadida con éxito en ${targets.length} lugar${s}! Ya puede descargar o firmar con otra cédula.`, 'success');
+            cedulaInput.focus();
+            updateStatus(`¡Proceso completado! Se añadieron ${locationsToSign.length} firmas. Ya puede descargar los archivos o firmar por otra persona.`, 'success');
+
         } catch (err) {
-            updateStatus(`Error al incrustar la(s) firma(s): ${err.message}`, 'error');
+            updateStatus(`Error al incrustar las firmas: ${err.message}`, 'error');
             console.error(err);
         }
     }
 
-    downloadBtn.addEventListener('click', () => {
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        const originalFileName = fileInput.files[0].name.replace(/\.pdf$/i, '');
-        link.download = `${originalFileName}-firmado.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
+    function displayDownloadLinks() {
+        downloadArea.innerHTML = '<h3>Archivos listos para descargar:</h3>'; // Limpia el área
+        let signedCount = 0;
+        loadedPdfs.forEach(pdfData => {
+            if (pdfData.signedBytes) {
+                const blob = new Blob([pdfData.signedBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                const originalFileName = pdfData.file.name.replace(/\.pdf$/i, '');
+                link.download = `${originalFileName}-firmado.pdf`;
+                link.textContent = `Descargar ${link.download}`;
+                downloadArea.appendChild(link);
+                signedCount++;
+            }
+        });
+        if(signedCount === 0) {
+            downloadArea.innerHTML = '<p>No hay archivos firmados para descargar.</p>';
+        }
+    }
     
     whatsappBtn.addEventListener('click', () => {
-        alert("Para compartir en WhatsApp:\n\n1. Primero, descargue el PDF firmado con el botón de al lado.\n2. Luego, abra WhatsApp y adjunte el archivo descargado.");
+        alert("Para compartir en WhatsApp:\n\n1. Primero, descargue los PDF firmados usando los enlaces de descarga.\n2. Luego, abra WhatsApp y adjunte los archivos que descargó.");
     });
+
 
     // --- FUNCIONES AUXILIARES ---
 
-    function resizeCanvas() {
-        const canvas = signaturePadCanvas;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        signaturePad.clear(); 
-    }
-    window.addEventListener("resize", resizeCanvas);
-
-    async function renderPdf() {
+    async function renderAllPdfs(showSigned = false) {
         pdfViewer.innerHTML = '';
-        const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-        for (let i = 0; i < pdfJsDoc.numPages; i++) {
-            const page = await pdfJsDoc.getPage(i + 1);
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            await page.render({ canvasContext: context, viewport: viewport }).promise;
-            pdfViewer.appendChild(canvas);
+        for (const pdfData of loadedPdfs) {
+            const fileTitle = document.createElement('h3');
+            fileTitle.textContent = pdfData.file.name;
+            pdfViewer.appendChild(fileTitle);
+
+            const bytesToRender = (showSigned && pdfData.signedBytes) ? pdfData.signedBytes : pdfData.originalBytes;
+            const pdfJsDoc = await pdfjsLib.getDocument({ data: bytesToRender }).promise;
+            
+            for (let i = 0; i < pdfJsDoc.numPages; i++) {
+                const page = await pdfJsDoc.getPage(i + 1);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                pdfViewer.appendChild(canvas);
+            }
         }
     }
 
-    // MEJORADO: Esta función ahora detecta el final del texto en cada línea.
-    async function extractTextFromPdf() {
-        pdfTextContent = [];
+    async function extractTextFromPdf(pdfBytes) {
+        const textContentArray = [];
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-        for (let pageNum = 1; pageNum <= pdfJsDoc.numPages; pageNum++) {
-            const page = await pdfJsDoc.getPage(pageNum);
+
+        for (let i = 0; i < pdfJsDoc.numPages; i++) {
+            const page = await pdfJsDoc.getPage(i + 1);
             const textContent = await page.getTextContent();
             
             const lines = {};
             textContent.items.forEach(item => {
-                if (!item.str.trim()) return; // Ignorar items vacíos
+                const y = item.transform[5];
+                const x = item.transform[4];
+                const yKey = Math.round(y); 
                 
-                const y = Math.round(item.transform[5]);
-                if (!lines[y]) {
-                    lines[y] = { items: [], maxX: 0 };
-                }
-                lines[y].items.push({ text: item.str, x: item.transform[4] });
-                
-                // Calculamos dónde termina este fragmento de texto
-                const endX = item.transform[4] + item.width;
-                // Guardamos la posición X más a la derecha de la línea
-                if (endX > lines[y].maxX) {
-                    lines[y].maxX = endX;
-                }
+                if (!lines[yKey]) lines[yKey] = [];
+                lines[yKey].push({ text: item.str, x: x });
             });
             
             for (const yKey in lines) {
-                const line = lines[yKey];
-                const sortedItems = line.items.sort((a, b) => a.x - b.x);
+                const sortedItems = lines[yKey].sort((a, b) => a.x - b.x);
                 const fullText = sortedItems.map(item => item.text).join(' ');
                 
-                pdfTextContent.push({
+                textContentArray.push({
                     fullText: fullText,
                     y: parseFloat(yKey),
-                    pageIndex: pageNum - 1,
-                    // Guardamos la posición X final para saber dónde empezar a firmar
-                    endOfTextX: line.maxX 
+                    pageIndex: i
                 });
             }
         }
-        console.log("Contenido de texto extraído (con posición final):", pdfTextContent);
+        return textContentArray;
     }
     
     function updateStatus(message, type) {
@@ -290,15 +339,17 @@
     }
 
     function resetUI() {
+        loadedPdfs = [];
+        locationsToSign = [];
         cedulaInput.disabled = true;
         signBtn.disabled = true;
-        downloadBtn.disabled = true;
-        whatsappBtn.disabled = true;
         cedulaInput.value = '';
         pdfViewer.innerHTML = '';
+        downloadArea.innerHTML = '<p>Aquí aparecerán los enlaces para descargar sus archivos firmados.</p>';
         statusDiv.innerHTML = '';
         statusDiv.className = '';
-        signatureTargets = [];
+        // Resetea el input para permitir recargar los mismos archivos
+        fileInput.value = ''; 
     }
 </script>
 </body>
