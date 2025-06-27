@@ -119,20 +119,20 @@
         updateStatus(`Cargando y analizando ${files.length} archivo(s)...`, 'info');
 
         try {
-            // Procesamos todos los archivos seleccionados en paralelo
             const processingPromises = Array.from(files).map(async (file) => {
                 if (file.type !== 'application/pdf') {
                     console.warn(`Omitiendo archivo no PDF: ${file.name}`);
                     return null;
                 }
                 const originalBytes = new Uint8Array(await file.arrayBuffer());
+                // --- CORRECCIÓN AQUÍ ---
+                // Se debe pasar 'originalBytes' a la función para que sepa qué archivo analizar.
                 const textContent = await extractTextFromPdf(originalBytes);
                 return { file, originalBytes, textContent, signedBytes: null };
             });
 
-            // Esperamos a que todos los archivos se procesen
             const results = await Promise.all(processingPromises);
-            loadedPdfs = results.filter(p => p !== null); // Filtramos los nulos (archivos no PDF)
+            loadedPdfs = results.filter(p => p !== null); 
 
             if (loadedPdfs.length === 0) {
                  throw new Error("No se seleccionaron archivos PDF válidos.");
@@ -157,9 +157,8 @@
             return;
         }
 
-        locationsToSign = []; // Limpiamos ubicaciones anteriores
+        locationsToSign = []; 
         
-        // Buscamos la cédula en TODOS los documentos cargados
         loadedPdfs.forEach((pdfData, fileIndex) => {
             const foundLines = pdfData.textContent.filter(line => 
                 line.fullText.replace(/\s/g, '').includes(cedula)
@@ -167,8 +166,8 @@
             
             foundLines.forEach(line => {
                 locationsToSign.push({
-                    fileIndex: fileIndex, // Guardamos el índice del archivo
-                    pageIndex: line.pageIndex, // Guardamos el índice de la página
+                    fileIndex: fileIndex, 
+                    pageIndex: line.pageIndex,
                     y: line.y + SIGNATURE_Y_OFFSET,
                     x: SIGNATURE_COLUMN_X
                 });
@@ -206,22 +205,20 @@
         try {
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
             
-            // Agrupamos las firmas por archivo para procesar cada PDF una sola vez
             const locationsByFile = locationsToSign.reduce((acc, loc) => {
-                if (!acc[loc.fileIndex]) {
-                    acc[loc.fileIndex] = [];
-                }
+                if (!acc[loc.fileIndex]) acc[loc.fileIndex] = [];
                 acc[loc.fileIndex].push(loc);
                 return acc;
             }, {});
 
-            // Procesamos cada archivo que necesita ser firmado
             for (const fileIndexStr in locationsByFile) {
                 const fileIndex = parseInt(fileIndexStr, 10);
                 const pdfData = loadedPdfs[fileIndex];
                 const locations = locationsByFile[fileIndex];
 
-                const pdfDoc = await PDFDocument.load(pdfData.originalBytes);
+                // Usamos los bytes ya firmados si existen, si no los originales
+                const bytesToLoad = pdfData.signedBytes || pdfData.originalBytes;
+                const pdfDoc = await PDFDocument.load(bytesToLoad);
                 const pngImage = await pdfDoc.embedPng(pngImageBytes);
                 
                 locations.forEach(loc => {
@@ -234,11 +231,10 @@
                     });
                 });
 
-                // Guardamos los bytes firmados en nuestro objeto de estado
                 pdfData.signedBytes = await pdfDoc.save();
             }
 
-            await renderAllPdfs(true); // Re-renderiza para mostrar los cambios
+            await renderAllPdfs(true);
             displayDownloadLinks();
             cedulaInput.value = '';
             cedulaInput.focus();
@@ -251,7 +247,7 @@
     }
 
     function displayDownloadLinks() {
-        downloadArea.innerHTML = '<h3>Archivos listos para descargar:</h3>'; // Limpia el área
+        downloadArea.innerHTML = '<h3>Archivos listos para descargar:</h3>';
         let signedCount = 0;
         loadedPdfs.forEach(pdfData => {
             if (pdfData.signedBytes) {
@@ -300,7 +296,8 @@
             }
         }
     }
-
+    
+    // La función ahora acepta los bytes del PDF como argumento
     async function extractTextFromPdf(pdfBytes) {
         const textContentArray = [];
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
@@ -348,7 +345,6 @@
         downloadArea.innerHTML = '<p>Aquí aparecerán los enlaces para descargar sus archivos firmados.</p>';
         statusDiv.innerHTML = '';
         statusDiv.className = '';
-        // Resetea el input para permitir recargar los mismos archivos
         fileInput.value = ''; 
     }
 </script>
