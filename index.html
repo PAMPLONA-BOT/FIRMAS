@@ -38,7 +38,7 @@
 <body>
     <div class="container">
         <h1>Firma Inteligente de Registro de Formación</h1>
-        <p style="text-align:center;">Esta herramienta encontrará tu cédula en el PDF y colocará tu firma en el lugar correcto automáticamente.</p>
+        <p style="text-align:center;">Esta herramienta encontrará **todas** las apariciones de su cédula en el PDF y colocará su firma en los lugares correctos automáticamente.</p>
 
         <div class="step">
             <h2>Paso 1: Cargar el Documento PDF</h2>
@@ -104,8 +104,8 @@
     // Variables de estado
     let pdfDoc = null;
     let pdfBytes = null;
-    let pdfTextContent = []; // Almacenará el texto y coordenadas de cada línea del PDF
-    let currentUser = null; // Almacenará la info del firmante actual
+    let pdfTextContent = []; 
+    let locationsToSign = []; // Almacenará TODAS las ubicaciones para la firma
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
     // --- LÓGICA PRINCIPAL ---
@@ -125,10 +125,7 @@
             pdfBytes = new Uint8Array(arrayBuffer);
             pdfDoc = await PDFDocument.load(pdfBytes);
             
-            // Renderiza el PDF para el usuario
             await renderPdf();
-            
-            // Extrae el texto para la búsqueda inteligente
             await extractTextFromPdf();
 
             cedulaInput.disabled = false;
@@ -141,28 +138,28 @@
     });
 
     signBtn.addEventListener('click', () => {
-        const cedula = cedulaInput.value.trim().replace(/\.|,/g, ''); // Limpia puntos o comas
+        const cedula = cedulaInput.value.trim().replace(/\.|,/g, ''); 
         if (!cedula) {
             alert('Por favor, ingrese su número de cédula.');
             return;
         }
 
-        // Busca la línea en el contenido extraído del PDF
-        const foundLine = pdfTextContent.find(line => line.fullText.replace(/\s/g, '').includes(cedula));
+        // *** CAMBIO CLAVE: Usamos .filter() para encontrar TODAS las coincidencias ***
+        const foundLines = pdfTextContent.filter(line => line.fullText.replace(/\s/g, '').includes(cedula));
         
-        if (foundLine) {
-            // Guardamos la información del usuario encontrado
-            currentUser = {
+        if (foundLines.length > 0) {
+            // Guardamos la información de todas las ubicaciones encontradas
+            locationsToSign = foundLines.map(line => ({
                 cedula: cedula,
-                nombre: foundLine.fullText, // Guardamos la línea entera como referencia
+                nombre: line.fullText,
                 x: SIGNATURE_COLUMN_X,
-                y: foundLine.y + SIGNATURE_Y_OFFSET,
-                pageIndex: foundLine.pageIndex
-            };
+                y: line.y + SIGNATURE_Y_OFFSET,
+                pageIndex: line.pageIndex
+            }));
 
-            signatureUserName.textContent = `Confirma tu firma`;
+            signatureUserName.textContent = `Confirma tu firma (${locationsToSign.length} lugares encontrados)`;
             signatureModal.style.display = 'flex';
-            // Ajustar tamaño del canvas al mostrarse
+            
             setTimeout(() => {
                 const rect = signaturePadCanvas.getBoundingClientRect();
                 signaturePad.canvas.width = rect.width;
@@ -184,26 +181,31 @@
         }
         const signatureImage = signaturePad.toDataURL('image/png');
         signatureModal.style.display = 'none';
-        updateStatus('Incrustando firma en el documento...', 'info');
-        await embedSignature(signatureImage, currentUser);
+        updateStatus(`Incrustando ${locationsToSign.length} firma(s) en el documento...`, 'info');
+        
+        // Pasamos todas las ubicaciones a la función de firma
+        await embedSignatures(signatureImage, locationsToSign);
     });
 
-    async function embedSignature(signatureImage, user) {
+    // *** CAMBIO CLAVE: La función ahora acepta un array de ubicaciones y las procesa todas ***
+    async function embedSignatures(signatureImage, signatureInfos) {
         try {
-            // Recargamos el documento para no acumular cambios no guardados
             pdfDoc = await PDFDocument.load(pdfBytes); 
             
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
             const pngImage = await pdfDoc.embedPng(pngImageBytes);
             
-            const page = pdfDoc.getPage(user.pageIndex || 0); 
+            // Iteramos sobre cada ubicación encontrada para dibujar la firma
+            for (const info of signatureInfos) {
+                const page = pdfDoc.getPage(info.pageIndex); 
 
-            page.drawImage(pngImage, {
-                x: user.x,
-                y: user.y,
-                width: SIGNATURE_WIDTH,
-                height: SIGNATURE_HEIGHT,
-            });
+                page.drawImage(pngImage, {
+                    x: info.x,
+                    y: info.y,
+                    width: SIGNATURE_WIDTH,
+                    height: SIGNATURE_HEIGHT,
+                });
+            }
 
             pdfBytes = await pdfDoc.save();
             
@@ -211,7 +213,8 @@
             downloadBtn.disabled = false;
             whatsappBtn.disabled = false;
             cedulaInput.value = '';
-            updateStatus(`¡Firma para cédula ${user.cedula} añadida con éxito! Ya puede descargar o compartir el documento.`, 'success');
+            const firmaText = signatureInfos.length === 1 ? 'firma' : 'firmas';
+            updateStatus(`¡${signatureInfos.length} ${firmaText} añadidas con éxito! Ya puede descargar o compartir el documento.`, 'success');
 
         } catch (err) {
             updateStatus(`Error al incrustar la firma: ${err.message}`, 'error');
@@ -241,20 +244,16 @@
         const originalFileName = fileInput.files[0].name.replace(/\.pdf$/i, '');
         const fileName = `${originalFileName}-firmado.pdf`;
         
-        // Verificar si es móvil o escritorio
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
         if (isMobile) {
-            // Para móviles - intentamos abrir WhatsApp directamente
             const whatsappUrl = `whatsapp://send?text=Documento%20firmado%20${encodeURIComponent(fileName)}&attachment=${url}`;
             window.location.href = whatsappUrl;
             
-            // Fallback en caso de que no funcione
             setTimeout(() => {
                 window.open(`https://api.whatsapp.com/send?text=Documento%20firmado%20${encodeURIComponent(fileName)}`, '_blank');
             }, 500);
         } else {
-            // Para escritorio - abrimos web.whatsapp.com
             window.open(`https://web.whatsapp.com/send?text=Documento%20firmado%20${encodeURIComponent(fileName)}`, '_blank');
         }
     });
@@ -279,21 +278,18 @@
     }
 
     async function extractTextFromPdf() {
-        pdfTextContent = []; // Limpiar contenido anterior
+        pdfTextContent = []; 
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
 
         for (let i = 0; i < pdfJsDoc.numPages; i++) {
             const page = await pdfJsDoc.getPage(i + 1);
-            const pageHeight = page.getViewport({ scale: 1.0 }).height;
             const textContent = await page.getTextContent();
             
-            const lines = {}; // Objeto para agrupar textos por su coordenada Y
+            const lines = {}; 
 
             textContent.items.forEach(item => {
-                // La coordenada Y en pdf.js se mide desde la esquina inferior izquierda.
                 const y = item.transform[5];
                 const x = item.transform[4];
-                // Agrupamos por líneas redondeando la coordenada Y
                 const yKey = Math.round(y); 
                 
                 if (!lines[yKey]) {
@@ -302,17 +298,13 @@
                 lines[yKey].push({ text: item.str, x: x });
             });
             
-            // Procesamos las líneas agrupadas
             for (const yKey in lines) {
-                // Ordenamos los fragmentos de texto por su coordenada X (de izquierda a derecha)
                 const sortedItems = lines[yKey].sort((a, b) => a.x - b.x);
                 const fullText = sortedItems.map(item => item.text).join(' ');
                 
-                // Convertimos la coordenada Y de pdf.js a la de pdf-lib (que es la misma, origen abajo-izquierda)
-                // y la guardamos en nuestro array de contenido
                 pdfTextContent.push({
                     fullText: fullText,
-                    y: parseFloat(yKey), // Usamos la Y de la línea
+                    y: parseFloat(yKey),
                     pageIndex: i
                 });
             }
@@ -334,6 +326,7 @@
         pdfViewer.innerHTML = '';
         statusDiv.innerHTML = '';
         statusDiv.className = '';
+        locationsToSign = []; // Limpiar las ubicaciones al cargar un nuevo archivo
     }
 
 </script>
