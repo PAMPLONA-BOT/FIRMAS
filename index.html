@@ -3,94 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firma Inteligente de Registro de Formación</title>
+    <title>Firma Inteligente de Registro</title>
     <!-- Librerías de PDF y Firma -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <!-- PDF.js para renderizar y extraer texto -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    
+    <!-- Iconos (Font Awesome) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: sans-serif; background-color: #e9ecef; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: 20px auto; background-color: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1, h2 { text-align: center; color: #343a40; }
-        .step { background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #dee2e6; }
-        input[type="file"], input[type="text"], button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 5px; border: 1px solid #ced4da; box-sizing: border-box; font-size: 16px; }
-        button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; transition: background-color 0.3s; }
-        button:hover:not(:disabled) { background-color: #0056b3; }
-        button:disabled { background-color: #c0c0c0; cursor: not-allowed; }
-        #pdf-viewer { border: 1px solid #ccc; margin-top: 20px; max-height: 80vh; overflow-y: auto; }
-        #pdf-viewer canvas { display: block; margin: 10px auto; box-shadow: 0 0 8px rgba(0,0,0,0.2); width: 100%; height: auto; }
-        #status { text-align: center; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 5px; }
-        .status-success { background-color: #d4edda; color: #155724; }
-        .status-error { background-color: #f8d7da; color: #721c24; }
-        .status-info { background-color: #cce5ff; color: #004085; }
-        /* Modal de firma a pantalla completa */
-        #signature-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.8); flex-direction: column; justify-content: center; align-items: center; }
-        .modal-content { background-color: white; padding: 20px; border-radius: 10px; text-align: center; max-width: 90%; }
-        #signature-pad { border: 2px dashed #007bff; border-radius: 5px; }
-        .modal-content h3 { margin-top: 0; }
-        .modal-controls button { width: auto; padding: 10px 20px; margin: 10px 5px 0; }
-        .whatsapp-btn { background-color: #25D366; }
-        .whatsapp-btn:hover:not(:disabled) { background-color: #128C7E; }
+        /* --- ESTILOS PROFESIONALES Y MOBILE-FIRST --- */
+        
+        :root {
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --whatsapp-color: #25D366;
+            --whatsapp-hover: #128C7E;
+            --danger-color: #dc3545;
+            --light-bg: #f8f9fa;
+            --white: #ffffff;
+            --dark-text: #343a40;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
+        }
+
+        .header {
+            background-color: var(--white);
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.5em;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .main-container {
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background-color: var(--white);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+            border-top: 4px solid var(--primary-color);
+        }
+        
+        .card h2 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--dark-text);
+        }
+        
+        .card p {
+            font-size: 0.9em;
+            color: var(--secondary-color);
+            margin-bottom: 20px;
+        }
+
+        /* --- Estilos de Controles --- */
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        button, .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+        .btn-whatsapp { background-color: var(--whatsapp-color); color: white; }
+        .btn-whatsapp:hover:not(:disabled) { background-color: var(--whatsapp-hover); }
+        
+        button:disabled {
+            background-color: #c0c0c0;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* Ocultar input de archivo real */
+        #file-input { display: none; }
+
+        /* --- PDF Viewer y Status --- */
+        
+        #pdf-viewer {
+            border: 1px dashed var(--border-color);
+            margin-top: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        #pdf-viewer canvas {
+            display: block;
+            margin: 10px auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        #status {
+            text-align: center;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            display: none; /* Oculto por defecto, se muestra con JS */
+        }
+        #status.show { display: block; }
+        .status-success { background-color: #d4edda; color: #155724; border-left: 5px solid var(--success-color); }
+        .status-error { background-color: #f8d7da; color: #721c24; border-left: 5px solid var(--danger-color); }
+        .status-info { background-color: #cce5ff; color: #004085; border-left: 5px solid var(--primary-color); }
+
+        /* --- Modal de Firma Rediseñado --- */
+        
+        #signature-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100vw; height: 100vh;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+        }
+        
+        .modal-content {
+            background-color: var(--white);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: slide-in 0.3s ease-out;
+        }
+
+        @keyframes slide-in {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #signature-pad {
+            border: 2px dashed var(--primary-color);
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 2 / 1;
+            cursor: crosshair;
+        }
+        
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .modal-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .modal-controls button {
+            width: 100%;
+        }
+        #clear-signature {
+            background-color: transparent;
+            color: var(--secondary-color);
+            border: 1px solid var(--border-color);
+        }
+        #clear-signature:hover {
+            background-color: var(--light-bg);
+        }
+        #save-signature {
+            background-color: var(--success-color);
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Firma Inteligente de Registro de Formación</h1>
-        <p style="text-align:center;">Esta herramienta encontrará su <b>cédula</b> en el PDF para firmar o, si escribe <b>"firma"</b>, buscará el espacio para la firma del instructor.</p>
 
-        <div class="step">
-            <h2>Paso 1: Cargar el Documento PDF</h2>
+    <header class="header">
+        <h1>Firma Inteligente de Documentos</h1>
+    </header>
+
+    <main class="main-container">
+        
+        <div class="card">
+            <h2><i class="fa-solid fa-file-arrow-up"></i>Paso 1: Cargar Documento</h2>
+            <p>Seleccione el registro de formación en formato PDF para comenzar.</p>
             <input type="file" id="file-input" accept=".pdf">
+            <label for="file-input" class="btn btn-primary">
+                <i class="fa-solid fa-folder-open"></i>
+                Seleccionar PDF
+            </label>
         </div>
 
-        <div class="step">
-            <h2>Paso 2: Identifíquese para Firmar</h2>
-            <p>Ingrese su <b>cédula</b> (para firmar como participante).</p>
-            <input type="text" id="cedula-input" placeholder="Escriba su cédula'" disabled>
-            <button id="sign-btn" disabled>Buscar y Abrir Panel de Firma</button>
+        <div class="card">
+            <h2><i class="fa-solid fa-pen-fancy"></i>Paso 2: Identifíquese</h2>
+            <p>Ingrese su <b>cédula</b> para firmar como participante, o escriba <b>"firma"</b> si es el instructor.</p>
+            <div class="input-group">
+                <input type="text" id="cedula-input" placeholder="Escriba su cédula o la palabra 'firma'" disabled>
+                <button id="sign-btn" class="btn-primary" disabled>
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    Buscar y Firmar
+                </button>
+            </div>
         </div>
 
-        <div class="step">
-            <h2>Paso 3: Descargar y Compartir</h2>
-            <button id="download-btn" disabled>Descargar PDF Firmado</button>
-            <button id="whatsapp-btn" class="whatsapp-btn" disabled>Compartir</button>
+        <div class="card">
+            <h2><i class="fa-solid fa-circle-down"></i>Paso 3: Descargar y Compartir</h2>
+            <p>Una vez firmado, puede descargar el documento o compartirlo directamente.</p>
+            <div class="input-group">
+                <button id="download-btn" class="btn-primary" disabled>
+                    <i class="fa-solid fa-download"></i>
+                    Descargar PDF Firmado
+                </button>
+                <button id="whatsapp-btn" class="btn-whatsapp" disabled>
+                    <i class="fa-brands fa-whatsapp"></i>
+                    Compartir por WhatsApp
+                </button>
+            </div>
         </div>
 
         <div id="status"></div>
         <div id="pdf-viewer"></div>
-    </div>
+    </main>
 
     <!-- Modal para el panel de firma -->
     <div id="signature-modal">
         <div class="modal-content">
             <h3 id="signature-user-name">Dibuja tu firma en el recuadro</h3>
-            <canvas id="signature-pad" width="500" height="250"></canvas>
+            <canvas id="signature-pad"></canvas>
             <div class="modal-controls">
-                <button id="clear-signature">Limpiar</button>
-                <button id="save-signature">Aceptar y Guardar Firma</button>
+                <button id="clear-signature">
+                    <i class="fa-solid fa-eraser"></i> Limpiar
+                </button>
+                <button id="save-signature">
+                    <i class="fa-solid fa-check"></i> Aceptar y Guardar
+                </button>
             </div>
         </div>
     </div>
 
 <script>
+    // --- LÓGICA DE JAVASCRIPT COMPLETA Y CORREGIDA ---
+
     // --- ¡IMPORTANTE! CONFIGURACIÓN DE LAS FIRMAS ---
-
-    // --- FIRMA DEL PARTICIPANTE (al buscar por cédula) ---
-    const PARTICIPANT_SIGNATURE_COLUMN_X = 420; // Posición HORIZONTAL (eje X) de la firma.
-    const PARTICIPANT_SIGNATURE_Y_OFFSET = -4;  // Ajuste VERTICAL fino. Negativo la baja, positivo la sube.
-    const PARTICIPANT_SIGNATURE_WIDTH = 97;     // Ancho de la firma.
-    const PARTICIPANT_SIGNATURE_HEIGHT = 20;    // Alto de la firma.
+    const PARTICIPANT_SIGNATURE_COLUMN_X = 420;
+    const PARTICIPANT_SIGNATURE_Y_OFFSET = -4;
+    const PARTICIPANT_SIGNATURE_WIDTH = 97;
+    const PARTICIPANT_SIGNATURE_HEIGHT = 20;
+    const INSTRUCTOR_SIGNATURE_TEXT = 'FIRMA DEL INSTRUCTOR';
+    const INSTRUCTOR_SIGNATURE_X_OFFSET = -15;
+    const INSTRUCTOR_SIGNATURE_Y_OFFSET = 6;
+    const INSTRUCTOR_SIGNATURE_WIDTH = 120;
+    const INSTRUCTOR_SIGNATURE_HEIGHT = 15;
     
-    // --- FIRMA DEL INSTRUCTOR (al escribir "firma") ---
-    const INSTRUCTOR_SIGNATURE_TEXT = 'FIRMA DEL INSTRUCTOR'; // El texto exacto que se buscará.
-    const INSTRUCTOR_SIGNATURE_X_OFFSET = -15; // AJUSTE HORIZONTAL: Un valor NEGATIVO mueve la firma a la IZQUIERDA.
-    const INSTRUCTOR_SIGNATURE_Y_OFFSET = 6;   // Ajuste VERTICAL. POSITIVO para que esté SOBRE la línea.
-    const INSTRUCTOR_SIGNATURE_WIDTH = 120;    // Ancho de la firma del instructor.
-    const INSTRUCTOR_SIGNATURE_HEIGHT = 15;    // Alto de la firma del instructor.
-    // ---------------------------------------------------
-
     // Referencias a librerías
     const { PDFDocument } = PDFLib;
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js`;
@@ -112,12 +350,24 @@
     // Variables de estado
     let pdfDoc = null;
     let pdfBytes = null;
-    let pdfTextContent = []; 
-    let locationsToSign = []; 
+    let pdfTextContent = [];
+    let locationsToSign = [];
+
+    // Se inicializa SIN fondo para que la firma sea transparente
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
+    // Función para ajustar el tamaño del canvas de la firma (importante para móviles)
+    function resizeCanvas() {
+        const ratio =  Math.max(window.devicePixelRatio || 1, 1);
+        const canvas = signaturePad.canvas;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        canvas.getContext("2d").scale(ratio, ratio);
+        signaturePad.clear(); 
+    }
+    
     // --- LÓGICA PRINCIPAL ---
-
     fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file || file.type !== 'application/pdf') {
@@ -146,7 +396,7 @@
     });
 
     signBtn.addEventListener('click', () => {
-        const userInput = cedulaInput.value.trim().toLowerCase(); 
+        const userInput = cedulaInput.value.trim().toLowerCase();
         if (!userInput) {
             alert('Por favor, ingrese su cédula o la palabra "firma".');
             return;
@@ -192,10 +442,7 @@
             signatureModal.style.display = 'flex';
             
             setTimeout(() => {
-                const rect = signaturePadCanvas.getBoundingClientRect();
-                signaturePad.canvas.width = rect.width;
-                signaturePad.canvas.height = rect.height;
-                signaturePad.clear();
+                resizeCanvas();
             }, 10);
             
         } else {
@@ -267,27 +514,37 @@
             return;
         }
         
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
         const originalFileName = fileInput.files[0].name.replace(/\.pdf$/i, '');
         const fileName = `${originalFileName}-firmado.pdf`;
-        
+        const text = `Te comparto el documento firmado: ${encodeURIComponent(fileName)}`;
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        if (isMobile) {
-            const whatsappUrl = `whatsapp://send?text=Documento%20firmado%20${encodeURIComponent(fileName)}&attachment=${url}`;
-            window.location.href = whatsappUrl;
-            
-            setTimeout(() => {
-                window.open(`https://api.whatsapp.com/send?text=Documento%20firmado%20${encodeURIComponent(fileName)}`, '_blank');
-            }, 500);
-        } else {
-            window.open(`https://web.whatsapp.com/send?text=Documento%20firmado%20${encodeURIComponent(fileName)}`, '_blank');
+        if (navigator.canShare && isMobile) {
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const file = new File([blob], fileName, { type: 'application/pdf' });
+             if (navigator.canShare({ files: [file] })) {
+                navigator.share({
+                    files: [file],
+                    title: 'Documento Firmado',
+                    text: `Documento: ${fileName}`,
+                }).catch((err) => {
+                    if (err.name !== 'AbortError') {
+                        console.error('Error al compartir:', err);
+                    }
+                });
+                return;
+            }
         }
+        
+        // Fallback para escritorio o si Web Share API no está disponible/falla
+        alert("Para compartir, por favor descargue el archivo y luego adjúntelo en su aplicación de WhatsApp.");
+        const whatsappUrl = isMobile 
+            ? `https://api.whatsapp.com/send?text=${text}`
+            : `https://web.whatsapp.com/send?text=${text}`;
+        window.open(whatsappUrl, '_blank');
     });
 
     // --- FUNCIONES AUXILIARES ---
-
     async function renderPdf() {
         pdfViewer.innerHTML = '';
         const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
@@ -338,12 +595,11 @@
                 });
             }
         }
-        console.log("Contenido de texto extraído:", pdfTextContent);
     }
     
     function updateStatus(message, type) {
         statusDiv.textContent = message;
-        statusDiv.className = `status-${type}`;
+        statusDiv.className = `status-${type} show`;
     }
 
     function resetUI() {
@@ -357,7 +613,7 @@
         statusDiv.className = '';
         locationsToSign = [];
     }
-
 </script>
+
 </body>
 </html>
