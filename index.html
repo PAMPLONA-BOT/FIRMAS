@@ -19,9 +19,9 @@
             --primary-color: #007bff;
             --primary-hover: #0056b3;
             --secondary-color: #6c757d;
+            /* <!-- MODIFICADO: Añadido color para hover del botón secundario --> */
+            --secondary-hover: #5a6268;
             --success-color: #28a745;
-            --whatsapp-color: #25D366;
-            --whatsapp-hover: #128C7E;
             --danger-color: #dc3545;
             --light-bg: #f8f9fa;
             --white: #ffffff;
@@ -136,8 +136,9 @@
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
 
-        .btn-whatsapp { background-color: var(--whatsapp-color); color: white; }
-        .btn-whatsapp:hover:not(:disabled) { background-color: var(--whatsapp-hover); }
+        /* <!-- MODIFICADO: Estilo genérico para compartir en lugar de WhatsApp --> */
+        .btn-share { background-color: var(--secondary-color); color: white; }
+        .btn-share:hover:not(:disabled) { background-color: var(--secondary-hover); }
         
         button:disabled {
             background-color: #c0c0c0;
@@ -288,9 +289,10 @@
                     <i class="fa-solid fa-download"></i>
                     Descargar PDF Firmado
                 </button>
-                <button id="whatsapp-btn" class="btn-whatsapp" disabled>
-                    <i class="fa-brands fa-whatsapp"></i>
-                    Compartir por WhatsApp
+                <!-- MODIFICADO: El botón ahora es genérico para compartir -->
+                <button id="share-btn" class="btn-share" disabled>
+                    <i class="fa-solid fa-share-nodes"></i>
+                    Compartir
                 </button>
             </div>
         </div>
@@ -338,7 +340,8 @@
     const cedulaInput = document.getElementById('cedula-input');
     const signBtn = document.getElementById('sign-btn');
     const downloadBtn = document.getElementById('download-btn');
-    const whatsappBtn = document.getElementById('whatsapp-btn');
+    // <!-- MODIFICADO: Referencia al nuevo botón de compartir -->
+    const shareBtn = document.getElementById('share-btn');
     const pdfViewer = document.getElementById('pdf-viewer');
     const statusDiv = document.getElementById('status');
     const signatureModal = document.getElementById('signature-modal');
@@ -486,7 +489,8 @@
             
             await renderPdf();
             downloadBtn.disabled = false;
-            whatsappBtn.disabled = false;
+            // <!-- MODIFICADO: Habilitar el nuevo botón de compartir -->
+            shareBtn.disabled = false;
             cedulaInput.value = '';
             const firmaText = signatureInfos.length === 1 ? 'firma' : 'firmas';
             updateStatus(`¡${signatureInfos.length} ${firmaText} añadidas con éxito! Ya puede descargar o compartir.`, 'success');
@@ -508,7 +512,8 @@
         document.body.removeChild(link);
     });
     
-    whatsappBtn.addEventListener('click', () => {
+    // <!-- MODIFICADO: Lógica de compartir actualizada -->
+    shareBtn.addEventListener('click', async () => {
         if (!pdfBytes) {
             alert("No hay documento para compartir.");
             return;
@@ -516,32 +521,33 @@
         
         const originalFileName = fileInput.files[0].name.replace(/\.pdf$/i, '');
         const fileName = `${originalFileName}-firmado.pdf`;
-        const text = `Te comparto el documento firmado: ${encodeURIComponent(fileName)}`;
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        if (navigator.canShare && isMobile) {
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const file = new File([blob], fileName, { type: 'application/pdf' });
-             if (navigator.canShare({ files: [file] })) {
-                navigator.share({
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        
+        // La clave para mantener el nombre del archivo es crear un objeto File
+        // El segundo argumento del constructor File() es el nombre del archivo.
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+
+        // Comprobar si la API de compartir y compartir archivos es compatible
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
                     files: [file],
                     title: 'Documento Firmado',
                     text: `Documento: ${fileName}`,
-                }).catch((err) => {
-                    if (err.name !== 'AbortError') {
-                        console.error('Error al compartir:', err);
-                    }
                 });
-                return;
+                console.log('Documento compartido exitosamente.');
+            } catch (err) {
+                // El error 'AbortError' ocurre si el usuario cancela el diálogo de compartir, lo ignoramos.
+                if (err.name !== 'AbortError') {
+                    console.error('Error al compartir el archivo:', err);
+                    alert(`Error al compartir: ${err.message}`);
+                }
             }
+        } else {
+            // Fallback para navegadores que no soportan la Web Share API (ej. Firefox, desktop)
+            alert('La función de compartir no está disponible en su navegador. Por favor, descargue el archivo para compartirlo manualmente.');
         }
-        
-        // Fallback para escritorio o si Web Share API no está disponible/falla
-        alert("Para compartir, por favor descargue el archivo y luego adjúntelo en su aplicación de WhatsApp.");
-        const whatsappUrl = isMobile 
-            ? `https://api.whatsapp.com/send?text=${text}`
-            : `https://web.whatsapp.com/send?text=${text}`;
-        window.open(whatsappUrl, '_blank');
     });
 
     // --- FUNCIONES AUXILIARES ---
@@ -606,7 +612,8 @@
         cedulaInput.disabled = true;
         signBtn.disabled = true;
         downloadBtn.disabled = true;
-        whatsappBtn.disabled = true;
+        // <!-- MODIFICADO: Deshabilitar el nuevo botón de compartir en el reset -->
+        shareBtn.disabled = true;
         cedulaInput.value = '';
         pdfViewer.innerHTML = '';
         statusDiv.innerHTML = '';
