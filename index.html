@@ -38,7 +38,7 @@
 <body>
     <div class="container">
         <h1>Firma Inteligente de Registro de Formación</h1>
-        <p style="text-align:center;">Esta herramienta encontrará **todas** las apariciones de su cédula en el PDF y colocará su firma en los lugares correctos automáticamente.</p>
+        <p style="text-align:center;">Esta herramienta encontrará su <b>cédula</b> en el PDF para firmar o, si escribe <b>"firma"</b>, buscará el espacio para la firma del instructor.</p>
 
         <div class="step">
             <h2>Paso 1: Cargar el Documento PDF</h2>
@@ -47,8 +47,8 @@
 
         <div class="step">
             <h2>Paso 2: Identifíquese para Firmar</h2>
-            <p>Ingrese su número de cédula y presione "Buscar y Abrir Panel de Firma".</p>
-            <input type="text" id="cedula-input" placeholder="Escriba su cédula sin puntos" disabled>
+            <p>Ingrese su <b>cédula</b> (para firmar como participante) o escriba la palabra <b>firma</b> (para firmar como instructor).</p>
+            <input type="text" id="cedula-input" placeholder="Escriba su cédula o la palabra 'firma'" disabled>
             <button id="sign-btn" disabled>Buscar y Abrir Panel de Firma</button>
         </div>
 
@@ -75,13 +75,21 @@
     </div>
 
 <script>
-    // --- ¡IMPORTANTE! CONFIGURACIÓN DE LA FIRMA ---
-    // Ajusta estos valores según tu formato PDF.
-    const SIGNATURE_COLUMN_X = 420; // Posición HORIZONTAL (eje X) donde comenzarán TODAS las firmas.
-    const SIGNATURE_Y_OFFSET = -4; // Ajuste VERTICAL fino. Un valor negativo baja la firma, positivo la sube.
-    const SIGNATURE_WIDTH = 97;    // Ancho de la imagen de la firma en el PDF.
-    const SIGNATURE_HEIGHT = 20;    // Alto de la imagen de la firma en el PDF.
-    // ------------------------------------------------
+    // --- ¡IMPORTANTE! CONFIGURACIÓN DE LAS FIRMAS ---
+
+    // --- FIRMA DEL PARTICIPANTE (al buscar por cédula) ---
+    const PARTICIPANT_SIGNATURE_COLUMN_X = 420; // Posición HORIZONTAL (eje X) de la firma.
+    const PARTICIPANT_SIGNATURE_Y_OFFSET = -4;  // Ajuste VERTICAL fino. Negativo la baja, positivo la sube.
+    const PARTICIPANT_SIGNATURE_WIDTH = 97;     // Ancho de la firma.
+    const PARTICIPANT_SIGNATURE_HEIGHT = 20;    // Alto de la firma.
+    
+    // --- FIRMA DEL INSTRUCTOR (al escribir "firma") ---
+    const INSTRUCTOR_SIGNATURE_TEXT = 'FIRMA DEL INSTRUCTOR'; // El texto exacto que se buscará.
+    const INSTRUCTOR_SIGNATURE_X_OFFSET = -15; // AJUSTE HORIZONTAL: Un valor NEGATIVO mueve la firma a la IZQUIERDA.
+    const INSTRUCTOR_SIGNATURE_Y_OFFSET = 6;   // Ajuste VERTICAL. POSITIVO para que esté SOBRE la línea.
+    const INSTRUCTOR_SIGNATURE_WIDTH = 120;    // Ancho de la firma del instructor.
+    const INSTRUCTOR_SIGNATURE_HEIGHT = 15;    // Alto de la firma del instructor.
+    // ---------------------------------------------------
 
     // Referencias a librerías
     const { PDFDocument } = PDFLib;
@@ -105,7 +113,7 @@
     let pdfDoc = null;
     let pdfBytes = null;
     let pdfTextContent = []; 
-    let locationsToSign = []; // Almacenará TODAS las ubicaciones para la firma
+    let locationsToSign = []; 
     let signaturePad = new SignaturePad(signaturePadCanvas);
 
     // --- LÓGICA PRINCIPAL ---
@@ -130,7 +138,7 @@
 
             cedulaInput.disabled = false;
             signBtn.disabled = false;
-            updateStatus('PDF cargado y analizado. Ingrese su cédula para firmar.', 'success');
+            updateStatus('PDF cargado. Ingrese su cédula o la palabra "firma" para continuar.', 'success');
         } catch (err) {
             updateStatus(`Error al cargar el PDF: ${err.message}`, 'error');
             console.error(err);
@@ -138,24 +146,47 @@
     });
 
     signBtn.addEventListener('click', () => {
-        const cedula = cedulaInput.value.trim().replace(/\.|,/g, ''); 
-        if (!cedula) {
-            alert('Por favor, ingrese su número de cédula.');
+        const userInput = cedulaInput.value.trim().toLowerCase(); 
+        if (!userInput) {
+            alert('Por favor, ingrese su cédula o la palabra "firma".');
             return;
         }
 
-        // *** CAMBIO CLAVE: Usamos .filter() para encontrar TODAS las coincidencias ***
-        const foundLines = pdfTextContent.filter(line => line.fullText.replace(/\s/g, '').includes(cedula));
+        let foundLines = [];
+        let isInstructorSign = false;
+
+        if (userInput === 'firma') {
+            isInstructorSign = true;
+            foundLines = pdfTextContent.filter(line => 
+                line.fullText.toUpperCase().includes(INSTRUCTOR_SIGNATURE_TEXT)
+            );
+        } else {
+            const cedula = userInput.replace(/\.|,/g, '');
+            foundLines = pdfTextContent.filter(line => 
+                line.fullText.replace(/\s/g, '').includes(cedula)
+            );
+        }
         
         if (foundLines.length > 0) {
-            // Guardamos la información de todas las ubicaciones encontradas
-            locationsToSign = foundLines.map(line => ({
-                cedula: cedula,
-                nombre: line.fullText,
-                x: SIGNATURE_COLUMN_X,
-                y: line.y + SIGNATURE_Y_OFFSET,
-                pageIndex: line.pageIndex
-            }));
+            if (isInstructorSign) {
+                locationsToSign = foundLines.map(line => ({
+                    nombre: INSTRUCTOR_SIGNATURE_TEXT,
+                    x: line.x + INSTRUCTOR_SIGNATURE_X_OFFSET,
+                    y: line.y + INSTRUCTOR_SIGNATURE_Y_OFFSET,
+                    width: INSTRUCTOR_SIGNATURE_WIDTH,
+                    height: INSTRUCTOR_SIGNATURE_HEIGHT,
+                    pageIndex: line.pageIndex
+                }));
+            } else {
+                locationsToSign = foundLines.map(line => ({
+                    nombre: line.fullText,
+                    x: PARTICIPANT_SIGNATURE_COLUMN_X,
+                    y: line.y + PARTICIPANT_SIGNATURE_Y_OFFSET,
+                    width: PARTICIPANT_SIGNATURE_WIDTH,
+                    height: PARTICIPANT_SIGNATURE_HEIGHT,
+                    pageIndex: line.pageIndex
+                }));
+            }
 
             signatureUserName.textContent = `Confirma tu firma (${locationsToSign.length} lugares encontrados)`;
             signatureModal.style.display = 'flex';
@@ -168,7 +199,7 @@
             }, 10);
             
         } else {
-            updateStatus(`Cédula "${cedula}" no encontrada en el documento. Por favor, verifique.`, 'error');
+            updateStatus(`No se encontró la cédula o el texto "${userInput}" en el documento. Por favor, verifique.`, 'error');
         }
     });
 
@@ -183,11 +214,9 @@
         signatureModal.style.display = 'none';
         updateStatus(`Incrustando ${locationsToSign.length} firma(s) en el documento...`, 'info');
         
-        // Pasamos todas las ubicaciones a la función de firma
         await embedSignatures(signatureImage, locationsToSign);
     });
 
-    // *** CAMBIO CLAVE: La función ahora acepta un array de ubicaciones y las procesa todas ***
     async function embedSignatures(signatureImage, signatureInfos) {
         try {
             pdfDoc = await PDFDocument.load(pdfBytes); 
@@ -195,15 +224,14 @@
             const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
             const pngImage = await pdfDoc.embedPng(pngImageBytes);
             
-            // Iteramos sobre cada ubicación encontrada para dibujar la firma
             for (const info of signatureInfos) {
                 const page = pdfDoc.getPage(info.pageIndex); 
 
                 page.drawImage(pngImage, {
                     x: info.x,
                     y: info.y,
-                    width: SIGNATURE_WIDTH,
-                    height: SIGNATURE_HEIGHT,
+                    width: info.width,
+                    height: info.height,
                 });
             }
 
@@ -214,7 +242,7 @@
             whatsappBtn.disabled = false;
             cedulaInput.value = '';
             const firmaText = signatureInfos.length === 1 ? 'firma' : 'firmas';
-            updateStatus(`¡${signatureInfos.length} ${firmaText} añadidas con éxito! Ya puede descargar o compartir el documento.`, 'success');
+            updateStatus(`¡${signatureInfos.length} ${firmaText} añadidas con éxito! Ya puede descargar o compartir.`, 'success');
 
         } catch (err) {
             updateStatus(`Error al incrustar la firma: ${err.message}`, 'error');
@@ -305,11 +333,12 @@
                 pdfTextContent.push({
                     fullText: fullText,
                     y: parseFloat(yKey),
+                    x: sortedItems[0].x,
                     pageIndex: i
                 });
             }
         }
-        console.log("Contenido de texto extraído del PDF:", pdfTextContent);
+        console.log("Contenido de texto extraído:", pdfTextContent);
     }
     
     function updateStatus(message, type) {
@@ -326,7 +355,7 @@
         pdfViewer.innerHTML = '';
         statusDiv.innerHTML = '';
         statusDiv.className = '';
-        locationsToSign = []; // Limpiar las ubicaciones al cargar un nuevo archivo
+        locationsToSign = [];
     }
 
 </script>
